@@ -1,9 +1,25 @@
 #include <Arduino.h>
 #include <mcp_can.h>
 #include <SPI.h>
+#include <Wire.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+#include <Adafruit_I2CDevice.h>
 
+// CAN BUS module variables
 #define CAN0_INT 2
 MCP_CAN CAN0(10);
+
+// Oled display variables
+#define SCREEN_WIDTH 128
+#define SCREEN_HEIGHT 64
+#define OLED_RESET     -1
+#define SCREEN_ADDRESS 0x3C
+unsigned long screen_updated_time = 0;
+uint8_t screen_update_interval = 1; // 1 = 100 ms
+bool display_on = true;
+
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
 // Setup //
 const uint16_t MIN_LPG_RPM = 950; // RPM
@@ -37,7 +53,7 @@ uint8_t lpg_tank_level;
 uint16_t lpg_inj_duration; // micro seconds
 bool lpg_switch = false;
 
-// Time variables
+// Time variables //
 unsigned long current_time_millis;
 unsigned long current_time_micros;
 
@@ -106,14 +122,83 @@ void injection(){
 }
 // Injection end//
 
+// CAN BUS //
+
+int getRpm(){
+  return (can_message[2]+256*can_message[3])/4;
+}
+
+int getTps(){
+  return (int)can_message[4] * 4 / 10;
+}
+
+int getIq(){
+  return (int)can_message[1] * 25 / 10;
+}
+
+int getSpeed(){
+  return (int)can_message[3] * 129 / 100;
+}
+
+int getNm(){
+  return (int)can_message[2] * 158 / 100;
+}
+
+int getTemp(int bit){
+  return (int)can_message[bit] * 75 / 100 - 48;
+}
+
 void read_canbus(){
   if(!digitalRead(CAN0_INT)){
     CAN0.readMsgBuf(&can_id, &can_msg_len, can_message);
+    if(can_id == 0x280){
+      rpm = getRpm();
+      tps = getTps();
+      iq_diesel = getIq();
+    }
+
+    // if(can_id == 0x288){
+    //   speed = getSpeed();
+    // }
+
+    // if(can_id == 0x420){
+    //   // outsideTemp = getTemp(1);
+    //   coolantTemp = getTemp(4);
+    //   oilTemp = getTemp(3);
+    // }
+
+    // if(can_id == 0x488){
+    //   nm = getNm();
+    // }
+
+  }
+}
+
+void update_screen(){
+  if((current_time_millis - screen_updated_time) >= screen_update_interval){
+    display.clearDisplay();
+    display.setTextSize(2); // Draw 2X-scale text
+    display.setTextColor(SSD1306_WHITE);
+    display.setCursor(0, 0);
+    display.print(rpm);
+    display.print(F("   "));
+    display.println(iq_lpg);
+    display.println();
+    display.print(tps);
+    display.print(F("   "));
+    display.print(iq_diesel);
+    display.display();
+    screen_update_interval = millis();
   }
 }
 
 void setup() {
   Serial.begin(250000);
+
+  if(!display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS)) {
+    Serial.println(F("SSD1306 allocation failed"));
+    for(;;); // Don't proceed, loop forever
+  }
 
   if(CAN0.begin(MCP_ANY, CAN_500KBPS, MCP_8MHZ) == CAN_OK)
     Serial.println("MCP2515 Initialized Successfully!");
@@ -129,4 +214,5 @@ void loop() {
   close_injector();
   read_canbus();
   read_sensors();
+  if(display_on) update_screen();
 }
