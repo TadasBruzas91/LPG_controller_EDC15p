@@ -11,10 +11,15 @@ const uint16_t MAX_LPG_RPM = 3500; // RPM
 const uint8_t MIN_REDUCER_TEMP = 30; // Celcius
 const uint16_t MAX_LPG_EGT_TEMP = 500; // Celcius
 const uint8_t LPG_INJECTION_PERCENTAGE = 10; // %
-const uint8_t LPG_INJECTOR_PIN = 3;
-const uint8_t DIESEL_INJECTOR_INPUT_OUTPUT = 4;
 const uint16_t LPG_INJECTOR_OPEN_TIME = 3200; // microseconds
 const uint16_t LPG_INJECTOR_CLOSE_TIME = 2000; // microseconds
+const uint8_t LPG_INJECTOR_PIN = 3;
+const uint8_t DIESEL_INJECTOR_INPUT_OUTPUT = 4;
+const uint8_t MAP_SENSOR_PIN = 0;
+const uint8_t LPG_PRESSURE_SENSOR_PIN = 0;
+const uint8_t REDUCER_TEMP_SENSOR_PIN = 0;
+const uint8_t LPG_TEMP_SENSOR_PIN = 0;
+const uint8_t LPG_TANK_LEVEL_PIN = 0;
 
 // CANBUS read variables //
 long unsigned int can_id;
@@ -28,39 +33,68 @@ uint8_t tps;
 // LPG variables //
 uint8_t reducer_temp, lpg_temp;
 uint16_t map_pressure, lpg_pressure;
-uint16_t lpg_inj_duration;
+uint8_t lpg_tank_level;
+uint16_t lpg_inj_duration; // micro seconds
 bool lpg_switch = false;
+
+// Time variables
+unsigned long current_time_millis;
+unsigned long current_time_micros;
+
+// Sensors read variables //
+unsigned long sensors_read_time = 0;
+uint8_t sensors_read_interval = 100; // ms
+
+int interpolation(int x1, int x2, int x3, int y1, int y3){
+  int y2 = (x2-x1)*(y3-y1)/(x3-x1)+y1;
+  return y2;
+}
 
 // All controller sensors //
 void read_map(){
-
+  map_pressure;
+  lpg_pressure;
 }
 
 void read_lpg_temp(){
-
+  lpg_temp;
 }
 
 void read_reducer_temp(){
+  reducer_temp;
+}
 
+void read_egt_temp(){
+  egt_temp;
+}
+
+void read_lpg_tank_level(){
+  lpg_tank_level;
 }
 
 void read_sensors(){
-
+  if((current_time_millis - sensors_read_time) >= sensors_read_interval){
+    read_map();
+    read_lpg_temp();
+    read_reducer_temp();
+    read_lpg_tank_level();
+    sensors_read_time = millis();
+  }
 }
 
 // All controller sensors //
 
 // Injection start //
 void calculate_inj_duration(){
-
+  lpg_inj_duration;
 }
 
 void open_injector(){
-
+  digitalWrite(LPG_INJECTOR_PIN, HIGH);
 }
 
 void close_injector(){
-
+  digitalWrite(LPG_INJECTOR_PIN, LOW);
 }
 
 void injection(){
@@ -90,6 +124,9 @@ void setup() {
 }
 
 void loop() {
+  current_time_millis = millis();
+  current_time_micros = micros();
   close_injector();
   read_canbus();
+  read_sensors();
 }
