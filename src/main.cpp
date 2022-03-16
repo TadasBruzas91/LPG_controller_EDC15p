@@ -17,7 +17,7 @@ MCP_CAN CAN0(10);
 #define SCREEN_ADDRESS 0x3C
 unsigned long screen_updated_time = 0;
 uint8_t screen_update_interval = 1; // 1 = 100 ms
-bool display_on = true;
+bool display_on = false;
 
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
@@ -43,8 +43,9 @@ unsigned char can_msg_len = 0;
 unsigned char can_message[8];
 
 // Engine variables //
-uint16_t rpm, iq_diesel, iq_lpg, egt_temp;
-uint8_t tps;
+uint16_t rpm, iq_diesel, iq_lpg, nm, egt_temp;
+uint8_t tps, speed;
+uint8_t coolant_temp, oil_temp, outside_temp;
 
 // LPG variables //
 uint8_t reducer_temp, lpg_temp;
@@ -124,55 +125,65 @@ void injection(){
 
 // CAN BUS //
 
-int getRpm(){
-  return (can_message[2]+256*can_message[3])/4;
+void getRpm(){
+  rpm = (can_message[2]+256*can_message[3])/4;
 }
 
-int getTps(){
-  return (int)can_message[4] * 4 / 10;
+void getTps(){
+  tps = can_message[5] * 4 / 10;
 }
 
-int getIq(){
-  return (int)can_message[1] * 25 / 10;
+void getIq(){
+  iq_diesel = can_message[1] * 25 / 10;
 }
 
-int getSpeed(){
-  return (int)can_message[3] * 129 / 100;
+void getSpeed(){
+  speed = can_message[3] * 129 / 100;
 }
 
-int getNm(){
-  return (int)can_message[2] * 158 / 100;
+void getNm(){
+  nm = can_message[2] * 158 / 100;
 }
 
-int getTemp(int bit){
-  return (int)can_message[bit] * 75 / 100 - 48;
+void get_coolant_temp(){
+  coolant_temp = can_message[4] * 75 / 100 - 48;
+}
+
+void get_oil_temp(){
+  oil_temp = can_message[3] * 75 / 100 - 48;
+}
+
+void get_outside_temp(){
+  outside_temp = (can_message[1] - 100) / 2 ;
 }
 
 void read_canbus(){
   if(!digitalRead(CAN0_INT)){
     CAN0.readMsgBuf(&can_id, &can_msg_len, can_message);
     if(can_id == 0x280){
-      rpm = getRpm();
-      tps = getTps();
-      iq_diesel = getIq();
+      getRpm();
+      getTps();
+      getIq();
     }
 
-    // if(can_id == 0x288){
-    //   speed = getSpeed();
-    // }
+    if(can_id == 0x288){
+      getSpeed();
+    }
 
-    // if(can_id == 0x420){
-    //   // outsideTemp = getTemp(1);
-    //   coolantTemp = getTemp(4);
-    //   oilTemp = getTemp(3);
-    // }
+    if(can_id == 0x420){
+      get_coolant_temp();
+      get_oil_temp();
+      get_outside_temp();
+    }
 
-    // if(can_id == 0x488){
-    //   nm = getNm();
-    // }
+    if(can_id == 0x488){
+      getNm();
+      Serial.println(nm);
+    }
 
   }
 }
+// CAN BUS end//
 
 void update_screen(){
   if((current_time_millis - screen_updated_time) >= screen_update_interval){
