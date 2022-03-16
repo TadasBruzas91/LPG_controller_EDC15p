@@ -5,6 +5,7 @@
 // CAN BUS module variables
 #define CAN0_INT 2
 MCP_CAN CAN0(10);
+unsigned long counter = 0;
 
 // Setup //
 const uint16_t MIN_LPG_RPM = 950; // RPM
@@ -25,7 +26,7 @@ const uint8_t LPG_TANK_LEVEL_PIN = 0;
 // Serial out variables //
 bool serial_out_on = true;
 unsigned long serial_out_send = 0;
-const long serial_send_interval = 5000;
+const long serial_send_interval = 250;
 
 // CANBUS read variables //
 long unsigned int can_id;
@@ -168,9 +169,7 @@ void read_canbus(){
 
     if(can_id == 0x488){
       getNm();
-      Serial.println(nm);
     }
-
   }
 }
 // CAN BUS end//
@@ -206,15 +205,15 @@ void setup() {
     Serial.println("MCP2515 Initialized Successfully!");
   else Serial.println("Error Initializing MCP2515...");
 
-    CAN0.setMode(MCP_NORMAL);
-    pinMode(CAN0_INT, INPUT);
+  CAN0.setMode(MCP_NORMAL);
+  pinMode(CAN0_INT, INPUT);
 }
 
 void loop() {
   current_time_millis = millis();
   current_time_micros = micros();
-  serial_output();
   close_injector();
   read_canbus();
   read_sensors();
+  serial_output();
 }
