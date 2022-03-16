@@ -1,25 +1,10 @@
 #include <Arduino.h>
 #include <mcp_can.h>
 #include <SPI.h>
-#include <Wire.h>
-#include <Adafruit_GFX.h>
-#include <Adafruit_SSD1306.h>
-#include <Adafruit_I2CDevice.h>
 
 // CAN BUS module variables
 #define CAN0_INT 2
 MCP_CAN CAN0(10);
-
-// Oled display variables
-#define SCREEN_WIDTH 128
-#define SCREEN_HEIGHT 64
-#define OLED_RESET     -1
-#define SCREEN_ADDRESS 0x3C
-unsigned long screen_updated_time = 0;
-uint8_t screen_update_interval = 1; // 1 = 100 ms
-bool display_on = false;
-
-Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
 // Setup //
 const uint16_t MIN_LPG_RPM = 950; // RPM
@@ -185,31 +170,8 @@ void read_canbus(){
 }
 // CAN BUS end//
 
-void update_screen(){
-  if((current_time_millis - screen_updated_time) >= screen_update_interval){
-    display.clearDisplay();
-    display.setTextSize(2); // Draw 2X-scale text
-    display.setTextColor(SSD1306_WHITE);
-    display.setCursor(0, 0);
-    display.print(rpm);
-    display.print(F("   "));
-    display.println(iq_lpg);
-    display.println();
-    display.print(tps);
-    display.print(F("   "));
-    display.print(iq_diesel);
-    display.display();
-    screen_update_interval = millis();
-  }
-}
-
 void setup() {
   Serial.begin(250000);
-
-  if(!display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS)) {
-    Serial.println(F("SSD1306 allocation failed"));
-    for(;;); // Don't proceed, loop forever
-  }
 
   if(CAN0.begin(MCP_ANY, CAN_500KBPS, MCP_8MHZ) == CAN_OK)
     Serial.println("MCP2515 Initialized Successfully!");
@@ -225,5 +187,4 @@ void loop() {
   close_injector();
   read_canbus();
   read_sensors();
-  if(display_on) update_screen();
 }
