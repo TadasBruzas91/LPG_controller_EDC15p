@@ -22,6 +22,11 @@ const uint8_t REDUCER_TEMP_SENSOR_PIN = 0;
 const uint8_t LPG_TEMP_SENSOR_PIN = 0;
 const uint8_t LPG_TANK_LEVEL_PIN = 0;
 
+// Serial out variables //
+bool serial_out_on = true;
+unsigned long serial_out_send = 0;
+const long serial_send_interval = 5000;
+
 // CANBUS read variables //
 long unsigned int can_id;
 unsigned char can_msg_len = 0;
@@ -170,6 +175,30 @@ void read_canbus(){
 }
 // CAN BUS end//
 
+// Serial output //
+void serial_output(){
+  if(serial_out_on && (current_time_millis - serial_out_send) >= serial_send_interval){
+    Serial.print(rpm);
+    Serial.print(F("\t"));
+    Serial.print(nm);
+    Serial.print(F("\t"));
+    Serial.print(iq_diesel);
+    Serial.print(F("\t"));
+    Serial.print(iq_lpg);
+    Serial.print(F("\t"));
+    Serial.print(tps);
+    Serial.print(F("\t"));
+    Serial.print(speed);
+    Serial.print(F("\t"));
+    Serial.print(coolant_temp);
+    Serial.print(F("\t"));
+    Serial.print(oil_temp);
+    Serial.print(F("\t"));
+    Serial.println(outside_temp);
+    serial_out_send = current_time_millis;
+  }
+}
+
 void setup() {
   Serial.begin(250000);
 
@@ -184,6 +213,7 @@ void setup() {
 void loop() {
   current_time_millis = millis();
   current_time_micros = micros();
+  serial_output();
   close_injector();
   read_canbus();
   read_sensors();
