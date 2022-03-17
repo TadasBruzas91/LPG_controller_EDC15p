@@ -20,7 +20,7 @@ const uint8_t DIESEL_INJECTOR_INPUT_OUTPUT = 4;
 const uint8_t MAP_SENSOR_PIN = 0;
 const uint8_t LPG_PRESSURE_SENSOR_PIN = 0;
 const uint8_t REDUCER_TEMP_SENSOR_PIN = A0;
-const uint8_t LPG_TEMP_SENSOR_PIN = 0;
+const uint8_t LPG_TEMP_SENSOR_PIN = A1;
 const uint8_t LPG_TANK_LEVEL_PIN = 0;
 
 // Serial out variables //
@@ -80,11 +80,10 @@ void read_map(){
 }
 
 void read_lpg_temp(){
-  lpg_temp;
+  lpg_temp = ntc_thermistor(analogRead(LPG_TEMP_SENSOR_PIN));
 }
 
 void read_reducer_temp(){
-  
   reducer_temp = ntc_thermistor(analogRead(REDUCER_TEMP_SENSOR_PIN));
 }
 
@@ -213,7 +212,9 @@ void serial_output(){
       Serial.print(F("\t"));
       Serial.println(outside_temp);
     }else if(serial_out_mode == 2){
-      Serial.println(reducer_temp);
+      Serial.print(reducer_temp);
+      Serial.print(F("\t"));
+      Serial.println(lpg_temp);
     }
     serial_out_send = current_time_millis;
   }
