@@ -19,12 +19,13 @@ const uint8_t LPG_INJECTOR_PIN = 3;
 const uint8_t DIESEL_INJECTOR_INPUT_OUTPUT = 4;
 const uint8_t MAP_SENSOR_PIN = 0;
 const uint8_t LPG_PRESSURE_SENSOR_PIN = 0;
-const uint8_t REDUCER_TEMP_SENSOR_PIN = 0;
+const uint8_t REDUCER_TEMP_SENSOR_PIN = A0;
 const uint8_t LPG_TEMP_SENSOR_PIN = 0;
 const uint8_t LPG_TANK_LEVEL_PIN = 0;
 
 // Serial out variables //
 bool serial_out_on = true;
+uint8_t serial_out_mode = 1;
 unsigned long serial_out_send = 0;
 const long serial_send_interval = 250;
 
@@ -52,7 +53,7 @@ unsigned long current_time_micros;
 
 // Sensors read variables //
 unsigned long sensors_read_time = 0;
-uint8_t sensors_read_interval = 100; // ms
+uint8_t sensors_read_interval = 250; // ms
 
 int interpolation(int x1, int x2, int x3, int y1, int y3){
   int y2 = (x2-x1)*(y3-y1)/(x3-x1)+y1;
@@ -70,7 +71,7 @@ void read_lpg_temp(){
 }
 
 void read_reducer_temp(){
-  reducer_temp;
+  reducer_temp = analogRead(REDUCER_TEMP_SENSOR_PIN);
 }
 
 void read_egt_temp(){
@@ -179,23 +180,27 @@ void read_canbus(){
 // Serial output //
 void serial_output(){
   if(serial_out_on && (current_time_millis - serial_out_send) >= serial_send_interval){
-    Serial.print(rpm);
-    Serial.print(F("\t"));
-    Serial.print(iq_diesel);
-    Serial.print(F("\t"));
-    Serial.print(iq_lpg);
-    Serial.print(F("\t"));
-    Serial.print(tps);
-    Serial.print(F("\t"));
-    Serial.print(speed);
-    Serial.print(F("\t"));
-    Serial.print(coolant_temp);
-    Serial.print(F("\t"));
-    Serial.print(oil_temp);
-    Serial.print(F("\t"));
-    Serial.print(diesel_level);
-    Serial.print(F("\t"));
-    Serial.println(outside_temp);
+    if(serial_out_mode == 1){
+      Serial.print(rpm);
+      Serial.print(F("\t"));
+      Serial.print(iq_diesel);
+      Serial.print(F("\t"));
+      Serial.print(iq_lpg);
+      Serial.print(F("\t"));
+      Serial.print(tps);
+      Serial.print(F("\t"));
+      Serial.print(speed);
+      Serial.print(F("\t"));
+      Serial.print(coolant_temp);
+      Serial.print(F("\t"));
+      Serial.print(oil_temp);
+      Serial.print(F("\t"));
+      Serial.print(diesel_level);
+      Serial.print(F("\t"));
+      Serial.println(outside_temp);
+    }else if(serial_out_mode == 2){
+      Serial.println(reducer_temp);
+    }
     serial_out_send = current_time_millis;
   }
 }
