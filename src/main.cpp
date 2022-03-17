@@ -34,9 +34,10 @@ unsigned char can_msg_len = 0;
 unsigned char can_message[8];
 
 // Engine variables //
-uint16_t rpm, iq_diesel, iq_lpg, nm, egt_temp;
-uint8_t tps, speed;
+uint16_t rpm, iq_diesel, iq_lpg, egt_temp;
+uint8_t tps, speed, diesel_level;
 uint8_t coolant_temp, oil_temp, outside_temp;
+bool low_diesel_level_warning;
 
 // LPG variables //
 uint8_t reducer_temp, lpg_temp;
@@ -132,10 +133,6 @@ void getSpeed(){
   speed = can_message[3] * 129 / 100;
 }
 
-void getNm(){
-  nm = can_message[2] * 158 / 100;
-}
-
 void get_coolant_temp(){
   coolant_temp = can_message[4] * 75 / 100 - 48;
 }
@@ -146,6 +143,11 @@ void get_oil_temp(){
 
 void get_outside_temp(){
   outside_temp = (can_message[1] - 100) / 2 ;
+}
+
+void get_fuel_level(){
+  diesel_level = can_message[2] & 0x7F;
+  low_diesel_level_warning = can_message[2] & 0x80 == 0x80;
 }
 
 void read_canbus(){
@@ -167,8 +169,8 @@ void read_canbus(){
       get_outside_temp();
     }
 
-    if(can_id == 0x488){
-      getNm();
+    if(can_id == 0x320){
+      get_fuel_level();
     }
   }
 }
@@ -178,8 +180,6 @@ void read_canbus(){
 void serial_output(){
   if(serial_out_on && (current_time_millis - serial_out_send) >= serial_send_interval){
     Serial.print(rpm);
-    Serial.print(F("\t"));
-    Serial.print(nm);
     Serial.print(F("\t"));
     Serial.print(iq_diesel);
     Serial.print(F("\t"));
@@ -192,6 +192,8 @@ void serial_output(){
     Serial.print(coolant_temp);
     Serial.print(F("\t"));
     Serial.print(oil_temp);
+    Serial.print(F("\t"));
+    Serial.print(diesel_level);
     Serial.print(F("\t"));
     Serial.println(outside_temp);
     serial_out_send = current_time_millis;
