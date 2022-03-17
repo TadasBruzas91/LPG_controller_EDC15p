@@ -25,7 +25,7 @@ const uint8_t LPG_TANK_LEVEL_PIN = 0;
 
 // Serial out variables //
 bool serial_out_on = true;
-uint8_t serial_out_mode = 1;
+uint8_t serial_out_mode = 2;
 unsigned long serial_out_send = 0;
 const long serial_send_interval = 250;
 
@@ -55,9 +55,22 @@ unsigned long current_time_micros;
 unsigned long sensors_read_time = 0;
 uint8_t sensors_read_interval = 250; // ms
 
+// Temperature sensors variables
+float Ro = 2.2; // Nominal resistance
+uint16_t B =  3500; // Beta constant
+float Rseries = 2.2;// Series resistor 10K
+float To = 298.15; // Nominal Temperature
+
 int interpolation(int x1, int x2, int x3, int y1, int y3){
   int y2 = (x2-x1)*(y3-y1)/(x3-x1)+y1;
   return y2;
+}
+
+uint8_t ntc_thermistor(uint16_t analog_input){
+  float Vi = analog_input * (5.0 / 1023.0);
+  float R = (Vi * Rseries) / (5 - Vi);
+  float T =  1 / ((1 / To) + ((log(R / Ro)) / B));
+  return T - 273.15; // Converting kelvin to celsius
 }
 
 // All controller sensors //
@@ -71,7 +84,8 @@ void read_lpg_temp(){
 }
 
 void read_reducer_temp(){
-  reducer_temp = analogRead(REDUCER_TEMP_SENSOR_PIN);
+  
+  reducer_temp = ntc_thermistor(analogRead(REDUCER_TEMP_SENSOR_PIN));
 }
 
 void read_egt_temp(){
