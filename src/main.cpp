@@ -43,7 +43,7 @@ bool low_diesel_level_warning;
 // LPG variables //
 uint8_t reducer_temp, lpg_temp;
 uint16_t map_pressure, lpg_pressure;
-uint8_t lpg_tank_level;
+uint16_t lpg_tank_level;
 uint16_t lpg_inj_duration; // micro seconds
 bool lpg_switch = false;
 
@@ -93,7 +93,8 @@ void read_egt_temp(){
 }
 
 void read_lpg_tank_level(){
-  lpg_tank_level;
+  uint16_t level = analogRead(LPG_TANK_LEVEL_PIN);
+  lpg_tank_level = interpolation(35, level, 490, 0, 35);
 }
 
 void read_sensors(){
@@ -215,7 +216,9 @@ void serial_output(){
     }else if(serial_out_mode == 2){
       Serial.print(reducer_temp);
       Serial.print(F("\t"));
-      Serial.println(lpg_temp);
+      Serial.print(lpg_temp);
+      Serial.print(F("\t"));
+      Serial.println(lpg_tank_level);
     }else if(serial_out_mode == 3){
       Serial.println(execution_time);
     }
