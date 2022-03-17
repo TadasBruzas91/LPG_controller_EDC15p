@@ -16,16 +16,16 @@ const uint8_t LPG_INJECTION_PERCENTAGE = 10; // %
 const uint16_t LPG_INJECTOR_OPEN_TIME = 3200; // microseconds
 const uint16_t LPG_INJECTOR_CLOSE_TIME = 2000; // microseconds
 const uint8_t LPG_INJECTOR_PIN = 3;
-const uint8_t DIESEL_INJECTOR_INPUT_OUTPUT = 4;
-const uint8_t MAP_SENSOR_PIN = 0;
-const uint8_t LPG_PRESSURE_SENSOR_PIN = 0;
+const uint8_t DIESEL_INJECTOR_INPUT = 4;
+const uint8_t MAP_SENSOR_PIN = A6;
+const uint8_t LPG_PRESSURE_SENSOR_PIN = A7;
 const uint8_t REDUCER_TEMP_SENSOR_PIN = A0;
 const uint8_t LPG_TEMP_SENSOR_PIN = A1;
-const uint8_t LPG_TANK_LEVEL_PIN = 0;
+const uint8_t LPG_TANK_LEVEL_PIN = A2;
 
 // Serial out variables //
 bool serial_out_on = true;
-uint8_t serial_out_mode = 2;
+uint8_t serial_out_mode = 3;
 unsigned long serial_out_send = 0;
 const long serial_send_interval = 250;
 
@@ -50,6 +50,7 @@ bool lpg_switch = false;
 // Time variables //
 unsigned long current_time_millis;
 unsigned long current_time_micros;
+unsigned long execution_time;
 
 // Sensors read variables //
 unsigned long sensors_read_time = 0;
@@ -215,6 +216,8 @@ void serial_output(){
       Serial.print(reducer_temp);
       Serial.print(F("\t"));
       Serial.println(lpg_temp);
+    }else if(serial_out_mode == 3){
+      Serial.println(execution_time);
     }
     serial_out_send = current_time_millis;
   }
@@ -238,4 +241,7 @@ void loop() {
   read_canbus();
   read_sensors();
   serial_output();
+  if((micros() - current_time_micros) > execution_time){
+    execution_time = micros() - current_time_micros; // Calculate program execution time
+  }
 }
