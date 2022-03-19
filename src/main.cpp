@@ -46,11 +46,13 @@ uint16_t map_pressure, lpg_pressure;
 uint16_t lpg_tank_level;
 uint16_t lpg_inj_duration; // micro seconds
 bool lpg_switch = false;
+bool lpg_injector_open = false;
 
 // Time variables //
 unsigned long current_time_millis;
 unsigned long current_time_micros;
 unsigned long execution_time;
+unsigned long injection_start_micros;
 
 // Sensors read variables //
 unsigned long sensors_read_time = 0;
@@ -111,15 +113,22 @@ void read_sensors(){
 
 // Injection start //
 void calculate_inj_duration(){
-  lpg_inj_duration;
+  iq_lpg = iq_diesel * LPG_INJECTION_PERCENTAGE / 100;
+  lpg_inj_duration = interpolation(10, iq_lpg, 800, 897, 33568);
 }
 
 void open_injector(){
   digitalWrite(LPG_INJECTOR_PIN, HIGH);
+  lpg_injector_open = true;
+  injection_start_micros = current_time_micros;
 }
 
 void close_injector(){
-  digitalWrite(LPG_INJECTOR_PIN, LOW);
+  if(lpg_injector_open && current_time_micros - injection_start_micros >= lpg_inj_duration){
+    digitalWrite(LPG_INJECTOR_PIN, LOW);
+    lpg_injector_open = false;
+    lpg_inj_duration = 0;
+  }
 }
 
 void injection(){
@@ -235,6 +244,9 @@ void setup() {
 
   CAN0.setMode(MCP_NORMAL);
   pinMode(CAN0_INT, INPUT);
+  pinMode(LPG_INJECTOR_PIN, OUTPUT);
+
+  attachInterrupt(DIESEL_INJECTOR_INPUT, open_injector, FALLING);
 }
 
 void loop() {
