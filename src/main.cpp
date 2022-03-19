@@ -246,7 +246,7 @@ void setup() {
   pinMode(CAN0_INT, INPUT);
   pinMode(LPG_INJECTOR_PIN, OUTPUT);
 
-  attachInterrupt(DIESEL_INJECTOR_INPUT, open_injector, FALLING);
+  attachInterrupt(DIESEL_INJECTOR_INPUT, injection, FALLING);
 }
 
 void loop() {
