@@ -8,15 +8,15 @@ MCP_CAN CAN0(10);
 unsigned long counter = 0;
 
 // Setup //
-const uint16_t MIN_LPG_RPM = 950; // RPM
+const uint16_t MIN_LPG_RPM = 500; // RPM
 const uint16_t MAX_LPG_RPM = 3500; // RPM
 const uint8_t MIN_REDUCER_TEMP = 30; // Celcius
 const uint16_t MAX_LPG_EGT_TEMP = 500; // Celcius
-const uint8_t LPG_INJECTION_PERCENTAGE = 10; // %
-const uint16_t LPG_INJECTOR_OPEN_TIME = 3200; // microseconds
-const uint16_t LPG_INJECTOR_CLOSE_TIME = 2000; // microseconds
-const uint8_t LPG_INJECTOR_PIN = 3;
-const uint8_t DIESEL_INJECTOR_INPUT = 4;
+const uint8_t LPG_INJECTION_PERCENTAGE = 1; // %
+const uint16_t LPG_INJECTOR_OPEN_TIME = 1000; // microseconds
+const uint16_t LPG_INJECTOR_CLOSE_TIME = 0; // microseconds
+const uint8_t LPG_INJECTOR_PIN = 4;
+const uint8_t DIESEL_INJECTOR_INPUT = 3;
 const uint8_t MAP_SENSOR_PIN = A6;
 const uint8_t LPG_PRESSURE_SENSOR_PIN = A7;
 const uint8_t REDUCER_TEMP_SENSOR_PIN = A0;
@@ -25,7 +25,7 @@ const uint8_t LPG_TANK_LEVEL_PIN = A2;
 
 // Serial out variables //
 bool serial_out_on = true;
-uint8_t serial_out_mode = 3;
+uint8_t serial_out_mode = 1;
 unsigned long serial_out_send = 0;
 const long serial_send_interval = 250;
 
@@ -44,7 +44,7 @@ bool low_diesel_level_warning;
 uint8_t reducer_temp, lpg_temp;
 uint16_t map_pressure, lpg_pressure;
 uint16_t lpg_tank_level;
-uint16_t lpg_inj_duration; // micro seconds
+uint16_t lpg_inj_duration = 100; // micro seconds
 bool lpg_switch = false;
 bool lpg_injector_open = false;
 
@@ -63,6 +63,9 @@ float Ro = 2.2; // Nominal resistance
 uint16_t B =  3500; // Beta constant
 float Rseries = 2.2;// Series resistor 10K
 float To = 298.15; // Nominal Temperature
+
+// Injection variables //
+unsigned long inj_repeat = 0;
 
 int interpolation(int x1, int x2, int x3, int y1, int y3){
   int y2 = (x2-x1)*(y3-y1)/(x3-x1)+y1;
@@ -113,8 +116,7 @@ void read_sensors(){
 
 // Injection start //
 void calculate_inj_duration(){
-  iq_lpg = iq_diesel * LPG_INJECTION_PERCENTAGE / 100;
-  lpg_inj_duration = interpolation(10, iq_lpg, 800, 897, 33568);
+  iq_lpg = lpg_inj_duration /*= interpolation(1,iq_lpg,250,897,25310) + LPG_INJECTOR_OPEN_TIME*/;
 }
 
 void open_injector(){
@@ -127,15 +129,18 @@ void close_injector(){
   if(lpg_injector_open && current_time_micros - injection_start_micros >= lpg_inj_duration){
     digitalWrite(LPG_INJECTOR_PIN, LOW);
     lpg_injector_open = false;
-    lpg_inj_duration = 0;
+    // lpg_inj_duration = 0;
   }
 }
 
 void injection(){
-  if(lpg_switch && reducer_temp >= MIN_REDUCER_TEMP && rpm >= MIN_LPG_RPM && rpm <= MAX_LPG_RPM && egt_temp <= MAX_LPG_EGT_TEMP){
-    iq_lpg = iq_diesel * LPG_INJECTION_PERCENTAGE / 100;
-    calculate_inj_duration();
-    open_injector();
+  if(millis()-inj_repeat > 40){
+    if(lpg_switch && coolant_temp >= MIN_REDUCER_TEMP && rpm >= MIN_LPG_RPM && rpm <= MAX_LPG_RPM && egt_temp <= MAX_LPG_EGT_TEMP){
+      iq_lpg = iq_diesel * LPG_INJECTION_PERCENTAGE / 100;
+      calculate_inj_duration();
+      open_injector();
+    }
+    inj_repeat = millis();
   }
 }
 // Injection end//
@@ -209,7 +214,7 @@ void serial_output(){
       Serial.print(F("\t"));
       Serial.print(iq_diesel);
       Serial.print(F("\t"));
-      Serial.print(iq_lpg);
+      Serial.print(lpg_inj_duration);
       Serial.print(F("\t"));
       Serial.print(tps);
       Serial.print(F("\t"));
@@ -220,6 +225,8 @@ void serial_output(){
       Serial.print(oil_temp);
       Serial.print(F("\t"));
       Serial.print(diesel_level);
+      Serial.print(F("\t"));
+      Serial.print(lpg_switch);
       Serial.print(F("\t"));
       Serial.println(outside_temp);
     }else if(serial_out_mode == 2){
@@ -235,8 +242,23 @@ void serial_output(){
   }
 }
 
+void serial_input(){
+  if(Serial.available() > 0){
+    int byt = Serial.read();
+    if(byt == 49){
+      lpg_switch = true;
+    }else if(byt == 50){
+      lpg_switch = false;
+    }else if(byt == 51){
+      lpg_inj_duration += 10;
+    }else if(byt == 52){
+      lpg_inj_duration -= 10;
+    }
+  }
+}
+
 void setup() {
-  Serial.begin(250000);
+  Serial.begin(115200);
 
   if(CAN0.begin(MCP_ANY, CAN_500KBPS, MCP_8MHZ) == CAN_OK)
     Serial.println("MCP2515 Initialized Successfully!");
@@ -246,7 +268,7 @@ void setup() {
   pinMode(CAN0_INT, INPUT);
   pinMode(LPG_INJECTOR_PIN, OUTPUT);
 
-  attachInterrupt(DIESEL_INJECTOR_INPUT, injection, FALLING);
+  attachInterrupt(digitalPinToInterrupt(DIESEL_INJECTOR_INPUT), injection, RISING);
 }
 
 void loop() {
@@ -256,6 +278,7 @@ void loop() {
   read_canbus();
   read_sensors();
   serial_output();
+  serial_input();
   if((micros() - current_time_micros) > execution_time){
     execution_time = micros() - current_time_micros; // Calculate program execution time
   }
