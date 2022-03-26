@@ -10,10 +10,10 @@ unsigned long counter = 0;
 // Setup //
 const uint16_t MIN_LPG_RPM = 500; // RPM
 const uint16_t MAX_LPG_RPM = 3500; // RPM
-const uint8_t MIN_REDUCER_TEMP = 30; // Celcius
+const uint8_t MIN_REDUCER_TEMP = 40; // Celcius
 const uint16_t MAX_LPG_EGT_TEMP = 500; // Celcius
-const uint8_t LPG_INJECTION_PERCENTAGE = 1; // %
-const uint16_t LPG_INJECTOR_OPEN_TIME = 1000; // microseconds
+const uint8_t LPG_INJECTION_PERCENTAGE = 15; // %
+const uint16_t LPG_INJECTOR_OPEN_TIME = 2100; // microseconds
 const uint16_t LPG_INJECTOR_CLOSE_TIME = 0; // microseconds
 const uint8_t LPG_INJECTOR_PIN = 4;
 const uint8_t DIESEL_INJECTOR_INPUT = 3;
@@ -21,7 +21,8 @@ const uint8_t MAP_SENSOR_PIN = A6;
 const uint8_t LPG_PRESSURE_SENSOR_PIN = A7;
 const uint8_t REDUCER_TEMP_SENSOR_PIN = A0;
 const uint8_t LPG_TEMP_SENSOR_PIN = A1;
-const uint8_t LPG_TANK_LEVEL_PIN = A2;
+const uint8_t LPG_TANK_LEVEL_PIN = A3;
+const uint8_t LPG_VALVE_PIN = 6;
 
 // Serial out variables //
 bool serial_out_on = true;
@@ -40,12 +41,14 @@ uint8_t tps, speed, diesel_level;
 uint8_t coolant_temp, oil_temp, outside_temp;
 bool low_diesel_level_warning;
 
-// LPG variables //
+// LPG variables /9/
 uint8_t reducer_temp, lpg_temp;
 uint16_t map_pressure, lpg_pressure;
-uint16_t lpg_tank_level;
-uint16_t lpg_inj_duration = 100; // micro seconds
-bool lpg_switch = false;
+int lpg_tank_level;
+uint16_t lpg_inj_duration;
+uint16_t lpg_inj_duration_monitor;
+bool lpg_switch = true;
+bool lpg_valve_state = false;
 bool lpg_injector_open = false;
 
 // Time variables //
@@ -56,7 +59,7 @@ unsigned long injection_start_micros;
 
 // Sensors read variables //
 unsigned long sensors_read_time = 0;
-uint8_t sensors_read_interval = 250; // ms
+uint8_t sensors_read_interval = 500; // ms
 
 // Temperature sensors variables
 float Ro = 2.2; // Nominal resistance
@@ -66,10 +69,12 @@ float To = 298.15; // Nominal Temperature
 
 // Injection variables //
 unsigned long inj_repeat = 0;
+uint8_t cam_count = 0;
+unsigned long cam_rev_time = 0;
 
-int interpolation(int x1, int x2, int x3, int y1, int y3){
-  int y2 = (x2-x1)*(y3-y1)/(x3-x1)+y1;
-  return y2;
+uint16_t interpolation(uint16_t x1, uint16_t x, uint16_t x2, uint16_t y1, uint16_t y2){
+  uint16_t y = y1+(x-x1)*((y2-y1)/(x2-x1));
+  return y;
 }
 
 uint8_t ntc_thermistor(uint16_t analog_input){
@@ -98,8 +103,7 @@ void read_egt_temp(){
 }
 
 void read_lpg_tank_level(){
-  uint16_t level = analogRead(LPG_TANK_LEVEL_PIN);
-  lpg_tank_level = interpolation(35, level, 490, 0, 35);
+  lpg_tank_level = analogRead(LPG_TANK_LEVEL_PIN);
 }
 
 void read_sensors(){
@@ -116,7 +120,9 @@ void read_sensors(){
 
 // Injection start //
 void calculate_inj_duration(){
-  iq_lpg = lpg_inj_duration /*= interpolation(1,iq_lpg,250,897,25310) + LPG_INJECTOR_OPEN_TIME*/;
+  lpg_inj_duration = interpolation(0,iq_lpg,200 , 0, 15000) + LPG_INJECTOR_OPEN_TIME;
+  if(lpg_inj_duration + LPG_INJECTOR_OPEN_TIME > 10000) lpg_inj_duration = 10000; //Limit
+  lpg_inj_duration_monitor = lpg_inj_duration - LPG_INJECTOR_OPEN_TIME;
 }
 
 void open_injector(){
@@ -129,19 +135,24 @@ void close_injector(){
   if(lpg_injector_open && current_time_micros - injection_start_micros >= lpg_inj_duration){
     digitalWrite(LPG_INJECTOR_PIN, LOW);
     lpg_injector_open = false;
-    // lpg_inj_duration = 0;
+    lpg_inj_duration = 0;
   }
 }
 
 void injection(){
-  if(millis()-inj_repeat > 40){
+  cam_count++;
+  if(cam_count >= 7){
+    cam_rev_time = millis() - inj_repeat;
+    inj_repeat = millis();
+    cam_count = 0;
     if(lpg_switch && coolant_temp >= MIN_REDUCER_TEMP && rpm >= MIN_LPG_RPM && rpm <= MAX_LPG_RPM && egt_temp <= MAX_LPG_EGT_TEMP){
       iq_lpg = iq_diesel * LPG_INJECTION_PERCENTAGE / 100;
       calculate_inj_duration();
-      open_injector();
+      if(iq_diesel > 50) open_injector();
     }
-    inj_repeat = millis();
   }
+  // if(millis()-inj_repeat > 40){
+  // }
 }
 // Injection end//
 
@@ -214,7 +225,7 @@ void serial_output(){
       Serial.print(F("\t"));
       Serial.print(iq_diesel);
       Serial.print(F("\t"));
-      Serial.print(lpg_inj_duration);
+      Serial.print(iq_lpg);
       Serial.print(F("\t"));
       Serial.print(tps);
       Serial.print(F("\t"));
@@ -228,7 +239,9 @@ void serial_output(){
       Serial.print(F("\t"));
       Serial.print(lpg_switch);
       Serial.print(F("\t"));
-      Serial.println(outside_temp);
+      Serial.print(lpg_inj_duration_monitor);
+      Serial.print(F("\t"));
+      Serial.println(lpg_tank_level);
     }else if(serial_out_mode == 2){
       Serial.print(reducer_temp);
       Serial.print(F("\t"));
@@ -267,6 +280,7 @@ void setup() {
   CAN0.setMode(MCP_NORMAL);
   pinMode(CAN0_INT, INPUT);
   pinMode(LPG_INJECTOR_PIN, OUTPUT);
+  pinMode(LPG_VALVE_PIN, OUTPUT);
 
   attachInterrupt(digitalPinToInterrupt(DIESEL_INJECTOR_INPUT), injection, RISING);
 }
@@ -274,6 +288,7 @@ void setup() {
 void loop() {
   current_time_millis = millis();
   current_time_micros = micros();
+  digitalWrite(LPG_VALVE_PIN, lpg_switch);
   close_injector();
   read_canbus();
   read_sensors();
